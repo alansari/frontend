@@ -22,6 +22,10 @@ css = Style()
 # Define classes
 class Game:
     game_id:int; game_name:str; game_added:bool
+    def __init__(self, game_id: int, game_name: str, game_added: bool = False):
+        self.game_id = game_id
+        self.game_name = game_name
+        self.game_added = game_added
     def __ft__(self):
         return Li(
             Div(
@@ -44,6 +48,9 @@ class Game:
         )
 class Setting:
     key:str; value:str
+    def __init__(self, key: str, value: str):
+        self.key = key
+        self.value = value
     def __ft__(self):
         return Li(
             Strong(self.key, cls='col-auto'),
@@ -52,6 +59,7 @@ class Setting:
             cls='list-group-item grid'
         )
 class Logfile:
+    filename:str; content:str
     def __init__(self, filename: str, content: str):
         self.filename = filename
         self.content = content
@@ -66,24 +74,15 @@ try:
         gamedb = db.create(Game, pk='game_id')
         settingdb = db.create(Setting, pk='key')
         settingdb.insert(
-            Setting(key='Steam Directory',
-                value='/mnt/games/SteamLibrary/steamapps'
-            )
-        )
-        settingdb.insert(
-            Setting(key='Sunshine Json Location',
-                value='/home/default/.config/sunshine/apps.json'
-            )
-        )
-        settingdb.insert(
-            Setting(key='Poster Directory',
+            Setting(
+                key='Poster Directory',
                 value='/home/default/.local/share/posters'
             )
         )
     else:
         db = database('/home/default/.cache/shui.db')
-        gamedb = db.table(Game)
-        settingdb = db.table(Setting)
+        gamedb = db.table(Game, pk='game_id')
+        settingdb = db.table(Setting, pk='key')
 except Exception as e:
     print(f"An error occurred: {e}")
 
@@ -144,7 +143,7 @@ def Sidebar(sidebar_items, hx_get, hx_target):
         cls='offcanvas offcanvas-start w-25')
 
 # Add remove buttons to the sidebar
-sidebar_items = ('Logs', 'FAQ')
+sidebar_items = ('App Manager', 'Logs', 'FAQ')
 
 # The Log Page content is defined here
 def logs_content():
@@ -182,6 +181,216 @@ def faq_content():
         cls="container"
     )
 
+# Sunshine App Manager content is defined here
+def sunshine_appmanager_content():
+    return Div(
+        Div(
+            H2("Sunshine Manager", cls='col-10')
+        ), Div(
+            Button("Reload Steam Games",
+                hx_post="/reload",
+                cls='container-fluid btn btn-primary'
+            ),
+            Script('''
+                function filterList() { 
+                    var input, filter, ul, li, i, txtValue; 
+                    input = document.getElementById(\'filter-games\'); 
+                    filter = input.value.toLowerCase(); 
+                    ul = document.getElementById("game-ul"); 
+                    li = ul.getElementsByTagName(\'li\'); 
+                    for (i = 0; i < li.length; i++) { 
+                        txtValue = li[i].textContent || li[i].innerText; if (txtValue.toLowerCase().indexOf(filter) > -1) { li[i].style.display = ""; } else { li[i].style.display = "none"; } 
+                    } 
+                }
+            '''),
+            Input(id="filter-games", onkeyup="filterList()", placeholder="Type to filter list", cls='container-fluid form-control'),
+            Div(
+                Ul(*gamedb(order_by='-game_added'), id='game-ul', cls='list-group'),
+                cls='row py-2'
+            )
+        ), cls='container py-5'
+    )
+
+def get_steam_library_folders():
+    library_folders = []
+    
+    with open('/home/default/.steam/steam/steamapps/libraryfolders.vdf', 'r') as file:
+        content = file.read()
+    
+    # Use regex to find all paths
+    path_pattern = r'"path"\s*"([^"]*)"'
+    paths = re.findall(path_pattern, content)
+    
+    # Append 'steamapps' to each path
+    for path in paths:
+        full_path = os.path.join(path, 'steamapps')
+        library_folders.append(full_path)
+    
+    return library_folders
+
+def get_installed_steam_games():
+    found_appids = set()  # Use a set to store unique appids found
+
+    steam_dir = '/mnt/games/SteamLibrary/steamapps'
+
+    for filename in os.listdir(steam_dir):
+        if filename.endswith('.acf'):
+            acf_file = os.path.join(steam_dir, filename)
+            with open(acf_file, 'r', encoding='utf-8') as f:
+                acf_content = f.read()
+                appid_match = re.search(r'"appid"\s+"(\d+)"', acf_content)
+
+                if appid_match:
+                    appid = int(appid_match.group(1))
+                    # Get the parent in case its a DLC
+                    parent_appid_match = re.search(r'"parentappid"\s+"(\d+)"', acf_content)
+                    if parent_appid_match:
+                        parent_appid = int(parent_appid_match.group(1))
+                        found_appids.add(parent_appid) 
+                        
+                        # Check if the parent game already exists in the database
+                        if parent_appid not in gamedb:
+                            game_name_match = re.search(r'"name"\s+"([^"]+)"', acf_content)
+                            if game_name_match:
+                                game_name = game_name_match.group(1)
+                                gamedb.insert(Game(
+                                    game_id=parent_appid,
+                                    game_name=game_name,
+                                    game_added=False
+                                ))
+                    else:
+                        # If no parent appid
+                        found_appids.add(appid) 
+                        
+                        # Check if the game already exists in the database
+                        if appid not in gamedb:
+                            game_name_match = re.search(r'"name"\s+"([^"]+)"', acf_content)
+                            if game_name_match:
+                                game_name = game_name_match.group(1)
+                                gamedb.insert(Game(
+                                    game_id=appid,
+                                    game_name=game_name,
+                                    game_added=False
+                                ))
+    # TODO Remove any appids from gamedb that were not found in the ACF files
+
+# Functions to manipulate the sunshine apps.json file
+# TODO make this more robust and add error handling
+def add_sunshine_app(app_name, app_id, conf_loc='/home/default/.config/sunshine/apps.json'):
+
+    with open(conf_loc, 'r') as f:
+        data = json.load(f)
+
+    new_app = {
+        "name": f"{app_name}",
+        "output": "SH-run.txt",
+        "detached": [
+            f"/usr/bin/sunshine-run /usr/games/steam steam://rungameid/{app_id}"
+        ],
+        "exclude-global-prep-cmd": "True",
+        "elevated": "False",
+         "prep-cmd": [
+            {
+                "do": "/usr/bin/xfce4-minimise-all-windows",
+                "undo": "/usr/bin/sunshine-stop"
+            },
+            {
+                "do": "",
+                "undo": "/usr/bin/xfce4-close-all-windows"
+            }
+        ],
+        "image-path": f"/home/default/.local/share/posters/{app_id}.png",
+        "working-dir": "/home/default"
+    }
+
+    data['apps'].append(new_app)
+
+    fetch_and_resize_poster(app_id, app_name)
+
+    with open(conf_loc, 'w') as f:
+        json.dump(data, f, indent=4)
+
+# Function to delete a Sunshine App from the apps.json file
+def del_sunshine_app(app_name, app_id, conf_loc='/home/default/.config/sunshine/apps.json'):
+
+    with open(conf_loc, 'r', encoding='utf-8') as f:
+        data = json.load(f) 
+    
+    # Filter out the app with the specified name? maybe a better way?
+    data['apps'] = [app for app in data['apps'] if app['name'] != app_name] 
+
+    with open(conf_loc, 'w') as f:
+        json.dump(data, f, indent=4)
+
+# Function to fetch and resize Steam game posters
+# TODO Center text on the image if no header image is found
+def fetch_and_resize_poster(game_id, game_name, save_directory='/home/default/.local/share/posters'):
+    # Create the directory if it doesn't exist
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+    
+    # Check if the image already exists to avoid overwriting
+    if not os.path.exists(os.path.join(save_directory, f'{game_id}.png')):
+        # Create a blank image with black background
+        image = Image.new('RGB', (600, 800), 'black')
+        draw = ImageDraw.Draw(image)
+
+        # Define the font and text size
+        # Draw a Title to show that it is steam-headless managed
+        font = ImageFont.truetype("arial.ttf", 40)
+        draw.text((150, 20), "Steam Headless", fill='white', font=font)
+
+        # Draw tha game name at the footer
+        text_width = draw.textlength(str(game_name), font=font)
+        name_x_offset = (image.width - text_width) / 2
+
+        # Draw the text with wrapping if necessary
+        lines = []
+        words = game_name.split(' ')
+        line = ''
+        for word in words:
+            test_line = line + word + ' '
+            test_width = draw.textlength(test_line, font=font)
+            if test_width <= image.width:
+                line = test_line
+            else:
+                lines.append(line)
+                line = word + ' '
+        lines.append(line)
+
+        # Calculate the y-coordinate for each line of text
+        name_y_offset = 600  # Starting y-coordinate
+        for i, line in enumerate(lines):
+            name_x_offset = (image.width - draw.textlength(str(line), font=font)) / 2
+            draw.text((name_x_offset, name_y_offset), line, fill='white', font=font)
+            name_y_offset += 40
+
+        # Fetch the game poster from Steam API
+        url = f'https://store.steampowered.com/api/appdetails?appids={game_id}'
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            if str(game_id) in data and data[str(game_id)]['success']:
+                poster_url = data[str(game_id)]['data']['header_image']
+
+                response_poster = requests.get(poster_url)
+                if response_poster.status_code == 200:
+                    # Open the fetched image and resize it to fit
+                    poster_image = Image.open(requests.get(poster_url, stream=True).raw)
+                    height = int((600 / poster_image.width) * poster_image.height)
+                    resized_poster = poster_image.resize((600, height))
+                    
+                    # Calculate the position to center the image on the main image
+                    x_offset = 0
+                    y_offset = (800 - height) // 2
+                    
+                    # Paste the resized poster onto the black background
+                    image.paste(resized_poster, (x_offset, y_offset))
+        #TODO else use steamgridb here if api returns no image?
+                
+        # Save the final image appid.png
+        image.save(f'{save_directory}/{game_id}.png')
+
 @rt('/')
 def get():
     return Main(
@@ -214,11 +423,36 @@ def get():
 def menucontent(menu: str):
 
     switch_cases = {
+        'App Manager': sunshine_appmanager_content(),
         'Logs': logs_content(),
         'FAQ': faq_content()
     }
 
     return switch_cases.get(menu, Div("No content available", cls='py-5'))
+
+# Routes for the Sunshine App Manager
+# The route to reload the app manager content
+@rt('/reload')
+def post():
+    get_installed_steam_games()
+
+# The route to remove a game from sunshine
+@rt('/remove/{game_id}')
+def get(game_id:int):
+    game = gamedb[game_id]
+    game.game_added = False
+    gamedb.update(game)
+    del_sunshine_app(game.game_name, game.game_id)
+    return I(hxswap="innerHTML", cls='bi bi-toggle-off')
+
+# The route to add a game to sunshine
+@rt('/add/{game_id}')
+def get(game_id:int):
+    game = gamedb[game_id]
+    game.game_added = True
+    gamedb.update(game)
+    add_sunshine_app(game.game_name, game.game_id)
+    return I(hxswap="innerHTML", cls='bi bi-toggle-on')
 
 # Run the app
 # Serve the application at port 8082
