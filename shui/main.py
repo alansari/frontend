@@ -240,7 +240,25 @@ app,rt = fast_app(
 
 def open_sunshine():
     subprocess.run(['flatpak', 'run', 'org.mozilla.firefox', f'https://localhost:47990/']),
-    Script('window.location.href = "/"')
+    Script('''
+      // Dismiss all offcanvas elements
+      var offcanvasElements = document.querySelectorAll('.offcanvas');
+      offcanvasElements.forEach(element => {
+        const offcanvasInstance = bootstrap.Offcanvas.getInstance(element);
+        if (offcanvasInstance) {
+          offcanvasInstance.hide();
+        }
+      });
+    
+      // Dismiss all modal elements
+      var modalElements = document.querySelectorAll('.modal');
+      modalElements.forEach(element => {
+        const modalInstance = bootstrap.Modal.getInstance(element);
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+      });
+    ''')
 
 def open_shell():
     subprocess.run(["xfce4-terminal"]),
