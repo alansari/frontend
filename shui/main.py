@@ -56,26 +56,28 @@ class Logfile:
     def __ft__(self):
         return Details(Summary(self.filename), Pre(P(self.content)), cls='card mb-2')
 
-# # Define the database and create tables
-# if not os.path.isfile('/home/default/.cache/shui.db'):
-#     db = database('/home/default/.cache/shui.db')
-#     gamedb = db.create(Game, pk='game_id')
-#     settingdb = db.create(Setting, pk='key')
-#     settingdb.insert(
-#         Setting(
-#             key='Poster Directory',
-#             value='/home/default/.local/share/posters'
-#         )
-#     )
-# else:
-#     db = database('/home/default/.cache/shui.db')
-#     gamedb = db.table(Game, pk='game_id')
-#     settingdb = db.table(Setting, pk='key')
+# Define the database and create tables
+if not os.path.isfile('/home/default/.cache/shui.db'):
+    db = database('/home/default/.cache/shui.db')
+    gamedb = db.create(Game, pk='game_id')
+    settingdb = db.create(Setting, pk='key')
+    settingdb.insert(
+        Setting(
+            key='Poster Directory',
+            value='/home/default/.local/share/posters'
+        )
+    )
+else:
+    db = database('/home/default/.cache/shui.db')
+    # gamedb = db.table(Game, pk='game_id')
+    # settingdb = db.table(Setting, pk='key')
+    gamedb = db.create(Game, pk='game_id')
+    settingdb = db.create(Setting, pk='key')
 
 # Define the database and create tables
-db = database('/home/default/.cache/shui.db')
-gamedb = db.create(Game, pk='game_id')
-settingdb = db.create(Setting, pk='key')
+# db = database('/home/default/.cache/shui.db')
+# gamedb = db.create(Game, pk='game_id')
+# settingdb = db.create(Setting, pk='key')
 
 # Get the Server IP Address
 def get_local_ip():
@@ -102,22 +104,23 @@ server_ip = get_local_ip()
 
 # Grab Any ENV variables for later use
 port_novnc_web = os.getenv('PORT_NOVNC_WEB')
+sunshine_user = os.getenv('SUNSHINE_USERNAME')
+sunshine_pass = os.getenv('SUNSHINE_PASSWORD')
 
-# Setup toast notification system
-def notify(header, message, duration=500, **kwargs):
+def notify(header, message, **kwargs):
     return Div(
         Div(
-            Div(
-                Strong(header, cls='me-auto'),
-                Button('Close', cls='btn-close', data_bs_dismiss='toast'),
-                cls='toast-header'
-            ),
-            Div(
-                P(message),
-                cls='toast-body'
-            ), id='liveToast', cls='toast', role='alert'
-        ), cls='toast-container position-fixed bottom-0 end-0 p-3', style='z-index: 11', data_bs_delay=duration, data_bs_autohide='true'
-    ), Script('var toastEl = document.getElementById("liveToast"); var toast = bootstrap.Toast.getOrCreateInstance(toastEl); toast.show();')
+            Strong(header, cls='me-auto'),
+            Small("just now", cls='text-body-secondary'),
+            Button(type='button', class_='btn-close', data_bs_dismiss='toast', aria_label='Close'),
+            cls='toast-header'
+        ),
+        Div(
+            message,
+            cls='toast-body'
+        ),
+        cls='toast', role='alert', aria_live='assertive', aria_atomic='true', **kwargs
+    )
 
 # Define the sidebar items
 def SidebarItem(text, hx_get, hx_target, **kwargs):
@@ -434,12 +437,26 @@ def get():
         Div(
             Div(
                 Div(
+                    Div(
+                        Div(
+                            H5('Test Header', cls='modal-title'),
+                            Button(type='button', data_bs_dismiss='modal', aria_label='Close', cls='btn-close')
+                        ),
+                        cls='model-header'
+                    ),
                     Div(id='current-menu-content', cls='modal-body'),
                     cls='modal-content'
                 ),
                 cls='modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable'
             ),
             id="centeredScrollableModal", cls='modal', tabindex='-1', aria_labelledby='modalLabel', aria_hidden='true'
+        ),
+        Div(
+            Div(
+                id='toast-target',
+                cls='toast-container top-0 end-0 p-3'
+            ),
+            cls='position-relative', aria_live='polite', aria_atomic='true'
         )
     )
 
@@ -469,16 +486,16 @@ def post():
 # TODO Fix Not authorized error in sunshine's logs
 @rt('/sunshine-restart')
 def post():
-    #username = "sunshine"
-    #password = "sunshine"
+    username = "sunshine"
+    password = "sunshine"
     # Encode credentials for Basic Authentication
-    #credentials = f"{username}:{password}"
-    #encoded_credentials = base64.b64encode(credentials.encode())
+    credentials = f"{username}:{password}"
+    encoded_credentials = base64.b64encode(credentials.encode())
 
     api_url = f"https://{server_ip}:47990/api/restart"  
  
     headers = {
-        #"Authorization": f"Basic {encoded_credentials}",
+        "Authorization": f"Basic {encoded_credentials}",
         "Content-Type": "application/json"
     }
 
