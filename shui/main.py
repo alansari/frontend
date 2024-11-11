@@ -4,6 +4,7 @@ import requests
 import json
 import os
 import socket
+import subprocess
 
 # Define the bootstrap version, style, and icon packs
 cdn = 'https://cdn.jsdelivr.net/npm/bootstrap'
@@ -144,7 +145,7 @@ def Sidebar(sidebar_items, hx_get, hx_target):
         cls='offcanvas offcanvas-start w-25')
 
 # Add remove buttons to the sidebar
-sidebar_items = ('App Manager', 'Logs', 'FAQ')
+sidebar_items = ('App Manager', 'Sunshine', 'Logs', 'FAQ')
 
 # The Log Page content is defined here
 def logs_content():
@@ -236,6 +237,14 @@ app,rt = fast_app(
         bootstrap_links, 
         css)
 )
+
+def open_sunshine():
+    subprocess.run(['flatpak', 'run', 'org.mozilla.firefox', f'https://localhost:47990/']),
+    Script('window.location.href = "/"')
+
+def open_shell():
+    subprocess.run(["xfce4-terminal"]),
+    Script('window.location.href = "/"')
 
 def get_steam_library_folders():
     library_folders = []
@@ -466,6 +475,7 @@ def menucontent(menu: str):
     switch_cases = {
         #'Installers':  installer_content(),
         'App Manager': sunshine_appmanager_content(),
+        'Sunshine': open_sunshine(),
         'Logs': logs_content(),
         'FAQ': faq_content()
         #'Settings': settings_content()
