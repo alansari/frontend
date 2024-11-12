@@ -145,7 +145,8 @@ def Sidebar(sidebar_items, hx_get, hx_target):
         cls='offcanvas offcanvas-start w-25')
 
 # Add remove buttons to the sidebar
-sidebar_items = ('App Manager', 'Sunshine', 'Logs', 'FAQ')
+#sidebar_items = (('App Manager', 'window-desktop'), ('Sunshine', 'brightness-high'), ('Installers', 'menu-app'), ('Logs', 'card-text'), ('FAQ', 'question-octagon'))
+sidebar_items = ('App Manager', 'Logs', 'FAQ')
 
 # The Log Page content is defined here
 def logs_content():
@@ -238,31 +239,11 @@ app,rt = fast_app(
         css)
 )
 
-def open_sunshine():
-    subprocess.run(['flatpak', 'run', 'org.mozilla.firefox', f'https://localhost:47990/']),
-    Script('''
-      // Dismiss all offcanvas elements
-      var offcanvasElements = document.querySelectorAll('.offcanvas');
-      offcanvasElements.forEach(element => {
-        const offcanvasInstance = bootstrap.Offcanvas.getInstance(element);
-        if (offcanvasInstance) {
-          offcanvasInstance.hide();
-        }
-      });
-    
-      // Dismiss all modal elements
-      var modalElements = document.querySelectorAll('.modal');
-      modalElements.forEach(element => {
-        const modalInstance = bootstrap.Modal.getInstance(element);
-        if (modalInstance) {
-          modalInstance.hide();
-        }
-      });
-    ''')
+# def open_sunshine():
+#     subprocess.run(['flatpak', 'run', 'org.mozilla.firefox', f'https://localhost:47990/'])
 
-def open_shell():
-    subprocess.run(["xfce4-terminal"]),
-    Script('window.location.href = "/"')
+# def open_shell():
+#     subprocess.run(["xfce4-terminal"])
 
 def get_steam_library_folders():
     library_folders = []
@@ -493,7 +474,7 @@ def menucontent(menu: str):
     switch_cases = {
         #'Installers':  installer_content(),
         'App Manager': sunshine_appmanager_content(),
-        'Sunshine': open_sunshine(),
+        #'Sunshine': open_sunshine(),
         'Logs': logs_content(),
         'FAQ': faq_content()
         #'Settings': settings_content()
