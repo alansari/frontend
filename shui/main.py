@@ -105,8 +105,8 @@ server_ip = get_local_ip()
 
 # Grab Any ENV variables for later use
 port_novnc_web = os.getenv('PORT_NOVNC_WEB')
-sunshine_user = os.getenv('SUNSHINE_USERNAME')
-sunshine_pass = os.getenv('SUNSHINE_PASSWORD')
+sunshine_user = os.getenv('SUNSHINE_USER')
+sunshine_pass = os.getenv('SUNSHINE_PASS')
 
 def notify(header, message, **kwargs):
     return Div(
@@ -511,30 +511,15 @@ def post():
     return Script('window.location.href = "/"')
 
 # Function to restart sunshine
-# TODO Fix Not authorized error in sunshine's logs
 @rt('/sunshine-restart')
 def post():
     username = "sunshine"
     password = "sunshine"
-    # Encode credentials for Basic Authentication
-    credentials = f"{username}:{password}"
-    encoded_credentials = base64.b64encode(credentials.encode())
-
-    api_url = f"https://{server_ip}:47990/api/restart"  
- 
-    headers = {
-        "Authorization": f"Basic {encoded_credentials}",
-        "Content-Type": "application/json"
-    }
 
     # Send the restart request
-    response = requests.post(api_url, headers=headers, verify=False)
-
-    if response.status_code == 200:
-        return notify("Sunshine Manager", "Restarting Sunshine", 1000)
-    else:
-        return notify("Sunshine Manager", "Failed to Restart Sunshine", 1000)
-    
+    response = requests.post('https://localhost:47990/api/restart', 
+                             auth=(username, password), 
+                             verify=False)
 
 # The route to remove a game from sunshine
 @rt('/remove/{game_id}')
